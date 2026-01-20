@@ -37,7 +37,7 @@
       <p id="functionDomain">Explora diferentes funciones en 3D</p>
     </div>
 
-  <a-scene renderer="antialias: false">
+  <a-scene renderer="antialias: true">
       <!-- Piso simple para referencia -->
       <a-plane
         position="0 0 0"
@@ -1634,30 +1634,48 @@
       // =========================
       // Performance tweaks for VR headsets
       // =========================
-      (function() {
-        const sceneEl = document.querySelector('a-scene');
-        if (!sceneEl) return;
+      (function () {
+  const sceneEl = document.querySelector("a-scene");
+  if (!sceneEl) return;
 
-        // When entering VR, reduce pixel ratio and use framebufferScaleFactor when available
-        sceneEl.addEventListener('enter-vr', function () {
-          try {
-            // Access renderer (A-Frame attaches Three renderer to sceneEl.renderer after loaded)
-            const renderer = sceneEl.renderer || (sceneEl.systems && sceneEl.systems.renderer && sceneEl.systems.renderer.renderer);
-            if (!renderer) return;
+  const applyQuality = (mode) => {
+    const renderer =
+      sceneEl.renderer ||
+      (sceneEl.systems &&
+        sceneEl.systems.renderer &&
+        sceneEl.systems.renderer.renderer);
 
-            // Force a lower pixel ratio to reduce GPU load on standalone headsets
-            renderer.setPixelRatio(Math.min(1, window.devicePixelRatio || 1));
+    if (!renderer) return;
 
-            // If WebXR framebuffer scaling is supported, reduce internal resolution
-            if (renderer.xr && typeof renderer.xr.setFramebufferScaleFactor === 'function') {
-              // 0.6 is a good tradeoff; adjust down if necessary (0.5, 0.4)
-              renderer.xr.setFramebufferScaleFactor(0.6);
-            }
-            console.log('VR performance: lowered pixelRatio and framebuffer scale');
-          } catch (err) {
-            console.warn('enter-vr performance tweak failed', err);
-          }
-        });
+    const dpr = window.devicePixelRatio || 1;
+
+    if (mode === "vr") {
+      // ✅ Más nítido: usa DPR real, pero capado para no explotar la GPU
+      renderer.setPixelRatio(Math.min(dpr, 2));
+
+      // ✅ Si hay WebXR, no lo bajes tanto (0.85–1.0 suele verse bien)
+      if (renderer.xr && typeof renderer.xr.setFramebufferScaleFactor === "function") {
+        renderer.xr.setFramebufferScaleFactor(0.9);
+      }
+    } else {
+      // ✅ Restaurar a calidad normal
+      renderer.setPixelRatio(Math.min(dpr, 2));
+      if (renderer.xr && typeof renderer.xr.setFramebufferScaleFactor === "function") {
+        renderer.xr.setFramebufferScaleFactor(1.0);
+      }
+    }
+
+    // asegurar resize correcto
+    renderer.setSize(window.innerWidth, window.innerHeight, false);
+  };
+
+  sceneEl.addEventListener("renderstart", () => applyQuality("normal"));
+  sceneEl.addEventListener("enter-vr", () => applyQuality("vr"));
+  sceneEl.addEventListener("exit-vr", () => applyQuality("normal"));
+
+  window.addEventListener("resize", () => applyQuality("normal"));
+  document.addEventListener("fullscreenchange", () => applyQuality("normal"));
+})();
 
         // Restore pixel ratio on exit
         sceneEl.addEventListener('exit-vr', function () {
